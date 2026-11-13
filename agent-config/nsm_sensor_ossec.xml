@@ -1,0 +1,17 @@
+<!--
+  On the Zeek/Suricata sensor (Linux, Wazuh agent installed).
+  Add inside <ossec_config> of /var/ossec/etc/ossec.conf, then restart wazuh-agent.
+  Zeek must write JSON logs:  add  @load policy/tuning/json-logs.zeek  to local.zeek
+-->
+<ossec_config>
+  <localfile>
+    <log_format>json</log_format>
+    <location>/opt/zeek/logs/current/modbus.log</location>
+  </localfile>
+
+  <!-- Optional: Suricata alerts (Wazuh ships decoders/rules for Suricata EVE JSON) -->
+  <localfile>
+    <log_format>json</log_format>
+    <location>/var/log/suricata/eve.json</location>
+  </localfile>
+</ossec_config>

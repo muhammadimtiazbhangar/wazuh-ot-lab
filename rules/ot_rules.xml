@@ -1,0 +1,91 @@
+<!--
+  wazuh-ot-lab: OT/ICS detection rules for Wazuh 4.x
+  Install:  copy to /var/ossec/etc/rules/ot_rules.xml on the Wazuh manager,
+            register the CDB list (see manager-config/ossec_ruleset.xml),
+            then: systemctl restart wazuh-manager
+  Test:     /var/ossec/bin/wazuh-logtest  (paste lines from samples/)
+  Rule ID range 100200-100299 is reserved for this pack.
+  Lab use first. Tune levels to your own site risk assessment.
+  License: MIT. Author: Muhammad Imtiaz (muhammadimtiaz.com)
+-->
+
+<!-- ===================== UC1: Modbus writes (Zeek modbus.log) ===================== -->
+<group name="ot,modbus,">
+
+  <!-- Baseline: every Modbus write function seen by Zeek (WRITE_*, READ_WRITE_*) -->
+  <rule id="100200" level="3">
+    <decoded_as>json</decoded_as>
+    <field name="func">WRITE</field>
+    <description>OT: Modbus write $(func) from $(id.orig_h) to $(id.resp_h)</description>
+    <group>modbus_write,</group>
+  </rule>
+
+  <!-- Write from a host that is NOT an approved engineering workstation -->
+  <rule id="100210" level="12">
+    <if_sid>100200</if_sid>
+    <list field="id.orig_h" lookup="not_match_key">etc/lists/ot-eng</list>
+    <description>OT: Modbus write from unapproved host $(id.orig_h) to PLC $(id.resp_h)</description>
+    <group>ot_alert,mitre_ics_t0855,mitre_ics_t0836,</group>
+  </rule>
+
+  <!-- Modbus exception responses can indicate scanning or malformed commands -->
+  <rule id="100215" level="6">
+    <decoded_as>json</decoded_as>
+    <field name="func">\.+</field>
+    <field name="exception">\.+</field>
+    <description>OT: Modbus exception $(exception) for $(func) from $(id.orig_h)</description>
+    <group>modbus_exception,</group>
+  </rule>
+
+</group>
+
+<!-- ===================== UC3: USB mass storage on HMI / EWS ===================== -->
+<group name="ot,usb,">
+
+  <rule id="100230" level="10">
+    <if_group>syscheck</if_group>
+    <field name="syscheck.path">USBSTOR</field>
+    <description>OT: USB mass-storage device registered on an OT workstation</description>
+    <group>ot_alert,mitre_ics_t0847,</group>
+  </rule>
+
+</group>
+
+<!-- ===================== UC2: PLC project file changes (FIM whodata) ===================== -->
+<group name="ot,plc_project,">
+
+  <rule id="100235" level="10">
+    <if_group>syscheck</if_group>
+    <field name="syscheck.path" type="pcre2">(?i)\.(ap\d+|acd|s7p|zap\d+)$</field>
+    <description>OT: PLC project file changed: $(syscheck.path)</description>
+    <group>ot_alert,mitre_ics_t0843,</group>
+  </rule>
+
+</group>
+
+<!-- ===================== UC4: Off-hours remote access to jump host ===================== -->
+<group name="ot,remote_access,">
+
+  <!-- 60106 = Windows logon success (Wazuh default ruleset). LogonType 10 = RemoteInteractive (RDP). -->
+  <rule id="100240" level="8">
+    <if_sid>60106</if_sid>
+    <field name="win.eventdata.logonType">^10$</field>
+    <time>7 pm - 6 am</time>
+    <description>OT: off-hours RDP logon by $(win.eventdata.targetUserName) from $(win.eventdata.ipAddress)</description>
+    <group>ot_alert,mitre_ics_t0886,mitre_ics_t0859,</group>
+  </rule>
+
+</group>
+
+<!-- ===================== Correlation: multiple OT alerts in 30 minutes =====================
+     Counts only rules tagged ot_alert (not the level-3 baseline). Lab version is global;
+     in production add <same_field> on a zone/site field to correlate per zone. -->
+<group name="ot_correlation,">
+
+  <rule id="100250" level="15" frequency="3" timeframe="1800">
+    <if_matched_group>ot_alert</if_matched_group>
+    <description>OT: 3+ OT security alerts within 30 minutes: possible intrusion in progress</description>
+    <group>ot_incident,</group>
+  </rule>
+
+</group>

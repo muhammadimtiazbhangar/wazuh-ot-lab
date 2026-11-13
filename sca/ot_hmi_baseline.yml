@@ -1,0 +1,59 @@
+# OT HMI / engineering workstation hardening baseline (lab)
+# Each check is tagged with the IEC 62443-3-3 system requirement it supports.
+# Agree every check with the OEM before enforcing it on a production HMI.
+policy:
+  id: "ot_hmi_baseline"
+  file: "ot_hmi_baseline.yml"
+  name: "OT HMI/EWS baseline (IEC 62443-3-3 aligned)"
+  description: "Lab baseline for Windows HMIs and engineering workstations"
+  references:
+    - https://github.com/muhammadimtiazbhangar/wazuh-ot-lab
+
+requirements:
+  title: "Check that the agent is running on Windows"
+  description: "Requirements for running the policy on Windows"
+  condition: any
+  rules:
+    - 'r:HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Windows -> ComponentizedBuildsAvailable'
+    - 'r:HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Windows -> CSDVersion'
+
+checks:
+  - id: 90001
+    title: "USB mass-storage driver disabled"
+    description: "Removable media is a primary infection path into OT (ATT&CK for ICS T0847)."
+    remediation: "Set HKLM\\SYSTEM\\CurrentControlSet\\Services\\USBSTOR Start = 4 (or use device-control policy)."
+    compliance:
+      - iec62443: ["SR 2.3"]
+    condition: all
+    rules:
+      - 'r:HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\USBSTOR -> Start -> 4'
+
+  - id: 90002
+    title: "RDP requires Network Level Authentication"
+    description: "NLA authenticates the user before a remote session is created."
+    remediation: "Enable 'Require user authentication for remote connections by using NLA'."
+    compliance:
+      - iec62443: ["SR 1.1", "SR 1.13"]
+    condition: all
+    rules:
+      - 'r:HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp -> UserAuthentication -> 1'
+
+  - id: 90003
+    title: "AutoRun disabled for all drive types"
+    description: "Prevents automatic execution from removable media."
+    remediation: "Set NoDriveTypeAutoRun = 255 under HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer."
+    compliance:
+      - iec62443: ["SR 2.3", "SR 3.2"]
+    condition: all
+    rules:
+      - 'r:HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer -> NoDriveTypeAutoRun -> 255'
+
+  - id: 90004
+    title: "SMBv1 server disabled"
+    description: "SMBv1 is still found on legacy HMIs and is a common lateral-movement path."
+    remediation: "Disable SMBv1 (Set-SmbServerConfiguration -EnableSMB1Protocol $false) after OEM approval."
+    compliance:
+      - iec62443: ["SR 7.6"]
+    condition: all
+    rules:
+      - 'r:HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters -> SMB1 -> 0'
