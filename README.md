@@ -30,23 +30,39 @@ Companion kit to the Wazuh Ambassadors webinar *"Seeing the invisible: OT/ICS Se
 | UC1 | Modbus write from an unapproved host | Zeek JSON + CDB allowlist | 100210 (L12) | ATT&CK ICS T0855 / T0836 |
 | UC2 | PLC project file changed | FIM with whodata | 100235 (L10) | ATT&CK ICS T0843 |
 | UC3 | USB storage on HMI/EWS | Registry FIM | 100230 (L10) | ATT&CK ICS T0847 |
-| UC4 | Off-hours RDP to jump host | Windows logon + `<time>` | 100240 (L8) | ATT&CK ICS T0886 / T0859 |
+| UC4 | Off-hours remote-access RDP logon | Windows logon + `<time>` | 100240 (L8) | ATT&CK ICS T0886 / T0859 |
 | UC5 | Hardening drift on HMIs | SCA custom policy | SCA 90001–90004 | IEC 62443-3-3 SR 7.6 |
 | UC6 | Vulnerable OT software | Syscollector + vulnerability detection | built-in | IEC 62443-3-3 SR 7.8 |
 | ✱ | 3+ OT alerts in 30 min | Correlation (`frequency`/`timeframe`) | 100250 (L15) | Incident trigger |
 
-## Reference architecture (Purdue model)
+## Reference architecture: Purdue context, IEC 62443 zones & conduits
 
-```
-L4-5  Enterprise SOC / SIEM            <- alerts only, northbound via DMZ (one-way where possible)
-L3.5  OT DMZ: jump host [agent], OT firewalls [syslog]
-L3    Wazuh server (manager, indexer, dashboard), historian [agent]
-L2    HMI [agent], EWS [agent], Zeek/Suricata sensor [agent] <- SPAN/TAP (read-only)
-L1    PLC / RTU / SIS: NO agents, monitored passively
-L0    Sensors, actuators, drives
-```
+Purdue levels describe *where* things sit. IEC 62443 zones and conduits define *how* they are protected.
 
-Agents connect **outbound** to the manager on **1514/TCP** (enrollment 1515/TCP), which keeps zone conduits simple to document.
+| Level | Zone | Components | Monitoring |
+|---|---|---|---|
+| L4–5 | Enterprise | Enterprise SOC / SIEM | Receives approved events only (C3) |
+| L3.5 | Z-DMZ | OT event export relay (allowlisted, buffered, audited); remote-access gateway (MFA, approval, session recording) | Relay forwards alerts northbound; gateway brokers sessions (C6) |
+| L3 | Z-SEC | Wazuh server: manager, indexer, restricted dashboard | Central analysis, kept inside OT |
+| L3 | Z-OPS | Historian / OT application servers | Wazuh agent, OEM-validated (C1) |
+| L3 | Z-NET | OT firewalls & switches | Syslog (C4) |
+| L2 | Z-SUP | HMI / engineering workstations | Wazuh agent after OEM + performance testing (C1) |
+| L2 | Z-MON | Passive sensor (Zeek / Suricata), dedicated monitoring NIC | Telemetry to Wazuh (C5) |
+| L0–1 | Z-CTRL | PLC / RTU / IED | **No agents.** Mirrored via control-switch SPAN / TAP |
+| L0–1 | Z-SIS | Safety instrumented system | Separate zone, **not mirrored** unless the safety owner approves |
+
+### Conduits
+
+| ID | From → To | Purpose |
+|---|---|---|
+| C1 | Z-SUP, Z-OPS → Z-SEC | Agent telemetry (Wazuh 4.x: 1514/TCP, enrollment 1515/TCP; check for your version) |
+| C2 | Z-SEC → Z-DMZ relay | Controlled OT-to-DMZ alert export |
+| C3 | Z-DMZ relay → Enterprise SOC | Controlled northbound feed, approved events only |
+| C4 | Z-NET → Z-SEC | Network-device syslog |
+| C5 | Z-MON → Z-SEC | Passive sensor telemetry |
+| C6 | Z-DMZ gateway → Z-SUP | Brokered remote-access sessions; no unrestricted enterprise-to-OT access |
+
+> **Reference design, not a compliance claim.** Zones shown are proposed. Final zones and conduits come from a site risk assessment (IEC 62443-3-2). Every conduit is a firewall-enforced, controlled path, not a physically one-way link. For production, build a zone-and-conduit matrix: source/destination zones, direction, protocols, enforcement points, authentication, availability and the linked risk assessment.
 
 ## Quick start (manager)
 
