@@ -163,4 +163,4 @@ On `ews-01`, open the agent's **Configuration Assessment** tab and find the poli
 
 ---
 
-*Free to use and share under the MIT license. Not affiliated with or endorsed by Wazuh Inc. Questions or improvements: open an issue on GitHub or email info@muhammadimtiaz.com.*
+*Free to use and share under the MIT license. Not affiliated with or endorsed by Wazuh Inc. Questions or improvements: open an issue on GitHub or email security@muhammadimtiaz.com.*
